@@ -189,7 +189,23 @@ int main( int ArgC, char** ppArgV )
 
 } // main
 
-#else // XY_OS_IOS
+#elif defined( XY_OS_LINUX ) // XY_OS_IOS
+
+#include <locale.h>
+
+int main( int ArgC, char** ppArgV )
+{
+	xyContext& rContext      = xyGetContext();
+	rContext.CommandLineArgs = std::span< char* >( ppArgV, ArgC );
+	rContext.UIMode          = XY_UI_MODE_DESKTOP;
+
+	setlocale( LC_CTYPE, "UTF-8" );
+
+	return xyMain();
+
+} // main
+
+#else
 
 int main( int ArgC, char** ppArgV )
 {
@@ -201,4 +217,4 @@ int main( int ArgC, char** ppArgV )
 
 } // main
 
-#endif // !XY_OS_WINDOWS && !XY_OS_ANDROID && !XY_OS_IOS
+#endif // !XY_OS_WINDOWS && !XY_OS_ANDROID && !XY_OS_IOS && !XY_OS_LINUX
