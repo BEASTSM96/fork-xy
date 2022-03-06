@@ -245,6 +245,7 @@ extern std::vector< xyDisplayAdapter > xyGetDisplayAdapters( void );
 #include "xy-platforms/xy-tvos.h"
 #include "xy-platforms/xy-watchos.h"
 #include "xy-platforms/xy-windows.h"
+#include "xy-platforms/xy-linux.h"
 
 #if defined( XY_OS_WINDOWS )
 #include <windows.h>
@@ -259,6 +260,8 @@ extern std::vector< xyDisplayAdapter > xyGetDisplayAdapters( void );
 #include <unistd.h>
 #elif defined( XY_OS_IOS ) // XY_OS_ANDROID
 #include <UIKit/UIKit.h>
+#elif defined( XY_OS_LINUX )
+
 #endif // XY_OS_IOS
 
 
