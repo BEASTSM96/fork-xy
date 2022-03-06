@@ -205,7 +205,7 @@ int main( int ArgC, char** ppArgV )
 
 } // main
 
-#else
+#else // XY_OS_LINUX
 
 int main( int ArgC, char** ppArgV )
 {
