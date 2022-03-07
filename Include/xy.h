@@ -261,7 +261,7 @@ extern std::vector< xyDisplayAdapter > xyGetDisplayAdapters( void );
 #elif defined( XY_OS_IOS ) // XY_OS_ANDROID
 #include <UIKit/UIKit.h>
 #elif defined( XY_OS_LINUX )
-
+#include <dialog.h>
 #endif // XY_OS_IOS
 
 
@@ -431,6 +431,18 @@ void xyMessageBox( std::string_view Title, std::string_view Message )
 	// Sleep until dialog is closed
 	while( Presented )
 		std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+
+#elif defined( XY_OS_LINUX )
+
+	int status;
+	init_dialog( stdin, stdout );
+
+	status = dialog_yesno(
+				Title.data(),
+				Message.data(),
+				0, 0 );
+
+	end_dialog();
 
 #endif // XY_OS_IOS
 
@@ -670,8 +682,8 @@ std::vector< xyDisplayAdapter > xyGetDisplayAdapters( void )
 		if( GetMonitorInfoA( MonitorHandle, &Info ) )
 		{
 			xyDisplayAdapter Adapter = { .Name     = Info.szDevice,
-			                             .FullRect = { .Left=Info.rcMonitor.left, .Top=Info.rcMonitor.top, .Right=Info.rcMonitor.right, .Bottom=Info.rcMonitor.bottom },
-			                             .WorkRect = { .Left=Info.rcWork   .left, .Top=Info.rcWork   .top, .Right=Info.rcWork   .right, .Bottom=Info.rcWork   .bottom } };
+										 .FullRect = { .Left=Info.rcMonitor.left, .Top=Info.rcMonitor.top, .Right=Info.rcMonitor.right, .Bottom=Info.rcMonitor.bottom },
+										 .WorkRect = { .Left=Info.rcWork   .left, .Top=Info.rcWork   .top, .Right=Info.rcWork   .right, .Bottom=Info.rcWork   .bottom } };
 
 			DISPLAY_DEVICEA DisplayDevice = { .cb=sizeof( DISPLAY_DEVICEA ) };
 			if( EnumDisplayDevicesA( Adapter.Name.c_str(), 0, &DisplayDevice, 0 ) )
@@ -691,8 +703,8 @@ std::vector< xyDisplayAdapter > xyGetDisplayAdapters( void )
 	for( NSScreen* pScreen in [ NSScreen screens ] )
 	{
 		xyDisplayAdapter Adapter = { .Name     = [ [ pScreen localizedName ] UTF8String ],
-		                             .FullRect = { .Left=NSMinX( pScreen.frame ),        .Top=NSMinY( pScreen.frame ),        .Right=NSMaxX( pScreen.frame ),        .Bottom=NSMaxY( pScreen.frame ) },
-		                             .WorkRect = { .Left=NSMinX( pScreen.visibleFrame ), .Top=NSMinY( pScreen.visibleFrame ), .Right=NSMaxX( pScreen.visibleFrame ), .Bottom=NSMaxY( pScreen.visibleFrame ) } };
+									 .FullRect = { .Left=NSMinX( pScreen.frame ),        .Top=NSMinY( pScreen.frame ),        .Right=NSMaxX( pScreen.frame ),        .Bottom=NSMaxY( pScreen.frame ) },
+									 .WorkRect = { .Left=NSMinX( pScreen.visibleFrame ), .Top=NSMinY( pScreen.visibleFrame ), .Right=NSMaxX( pScreen.visibleFrame ), .Bottom=NSMaxY( pScreen.visibleFrame ) } };
 
 		DisplayAdapters.emplace_back( std::move( Adapter ) );
 	}
@@ -760,7 +772,7 @@ std::vector< xyDisplayAdapter > xyGetDisplayAdapters( void )
 		NSString*        pScreenName = ( pScreen == [ UIScreen mainScreen ] ) ? @"Main Display" : [ NSString stringWithFormat:@"External Display #%d", [ pScreens indexOfObject:pScreen ] ];
 		CGRect           Bounds      = [ pScreen bounds ];
 		xyDisplayAdapter MainDisplay = { .Name     = [ pScreenName UTF8String ],
-		                                 .FullRect = { .Left=CGRectGetMinX( Bounds ), .Top=CGRectGetMinY( Bounds ), .Right=CGRectGetMaxX( Bounds ), .Bottom=CGRectGetMaxY( Bounds ) } };
+										 .FullRect = { .Left=CGRectGetMinX( Bounds ), .Top=CGRectGetMinY( Bounds ), .Right=CGRectGetMaxX( Bounds ), .Bottom=CGRectGetMaxY( Bounds ) } };
 
 		// TODO: Obtain the safe area
 
