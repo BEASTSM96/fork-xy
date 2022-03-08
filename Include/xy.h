@@ -652,15 +652,7 @@ xyMessageResult xyMessageBox( std::string_view Title, std::string_view Message, 
 
 #elif defined( XY_OS_LINUX )
 
-	int status;
-	init_dialog( stdin, stdout );
 
-	status = dialog_yesno(
-				Title.data(),
-				Message.data(),
-				0, 0 );
-
-	end_dialog();
 
 #endif // XY_OS_IOS
 
