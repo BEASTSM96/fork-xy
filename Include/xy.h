@@ -211,6 +211,9 @@ extern xyMessageResult xyMessageBox( std::string_view Title, std::string_view Me
  * Prompts a system message box containing a user-defined message and an 'OK' button.
  * The current thread is blocked until the message box is closed.
  *
+ * Note: In Linux, we use xcb and X11 to draw the message box, we don't use Qt or wxWidgets, we use pure xcb to draw the message box.
+ * For others, we use their kernel APIs to create the message box.
+ * 
  * @param Title The title of the message box window.
  * @param Message The content of the message text box.
  */
@@ -652,7 +655,9 @@ xyMessageResult xyMessageBox( std::string_view Title, std::string_view Message, 
 
 #elif defined( XY_OS_LINUX )
 
-
+// Create an XCB window.
+xyContext& rContext = xyGetContext();
+rContext.pPlatformImpl->xyCreateXCBMsgBox();
 
 #endif // XY_OS_IOS
 
