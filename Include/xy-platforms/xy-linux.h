@@ -29,6 +29,7 @@
 #include <chrono>
 #include <xcb/xcb.h>
 #include <X11/Xlib-xcb.h>
+#include <xcb/xcb_icccm.h> // install libxcb-icccm4-dev
 #include <string>
 #include <cstring>
 
