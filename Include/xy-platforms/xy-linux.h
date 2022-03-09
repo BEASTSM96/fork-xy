@@ -102,11 +102,11 @@ bool xyMessageBoxData::WaitClose()
 		{
 			case XCB_KEY_PRESS:
 			{
-				xcb_rectangle_t Rectangles[] ={ { 0, 0, 500, 500 } };
+				xcb_rectangle_t Rectangles[] ={ { 0, 0, 0, 0 } };
 
-				xcb_poly_fill_rectangle_checked( m_pConnection, m_PixelMap, m_FillGC, Rectangles );
+				xcb_poly_fill_rectangle_checked( m_pConnection, m_PixelMap, m_FillGC, 1, Rectangles );
 
-				xcb_clear_area( m_pConnection, 1, m_Window, 0, 0, 500, 500 );
+				xcb_clear_area( m_pConnection, 1, m_Window, 0, 0, 0, 0 );
 
 				xcb_flush( m_pConnection );
 				return false;
@@ -114,6 +114,7 @@ bool xyMessageBoxData::WaitClose()
 
 			case XCB_EXPOSE:
 			{
+				xcb_clear_area( m_pConnection, 1, m_Window, 0, 0, 0, 0 );
 				xcb_flush( m_pConnection );
 				return false;
 			}
@@ -180,11 +181,19 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 
 	xcb_map_window( MessageBox.m_pConnection, MessageBox.m_Window );
 
+	// Great hack...
+	xcb_size_hints_t SizeHints;
+	SizeHints.flags      = XCB_ICCCM_SIZE_HINT_P_MIN_SIZE | XCB_ICCCM_SIZE_HINT_P_MAX_SIZE;
+	SizeHints.min_width  = SizeHints.max_width  = MessageBox.m_Width;
+	SizeHints.min_height = SizeHints.max_height = MessageBox.m_Height;
+
+	xcb_icccm_set_wm_normal_hints( MessageBox.m_pConnection, MessageBox.m_Window, &SizeHints );
+
 	xcb_flush( MessageBox.m_pConnection );
 
 	// Fill rect with black. #TODO: Fill color corresponding to theme.
 
-	xcb_rectangle_t Rectangles[] ={ { 0, 0, 500, 500 } };
+	xcb_rectangle_t Rectangles[] ={ { 0, 0, 0, 0 } };
 
 	xcb_poly_fill_rectangle( MessageBox.m_pConnection, MessageBox.m_PixelMap, MessageBox.m_FillGC, 1, Rectangles );
 

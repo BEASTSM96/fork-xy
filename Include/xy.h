@@ -657,7 +657,7 @@ xyMessageResult xyMessageBox( std::string_view Title, std::string_view Message, 
 
 // Create an XCB window.
 xyContext& rContext = xyGetContext();
-rContext.pPlatformImpl->xyCreateXCBMsgBox( "xyMessageBox", "a", xyMessageButtons::Ok );
+rContext.pPlatformImpl->xyCreateXCBMsgBox( "xyMessageBox", "a" );
 
 #endif // XY_OS_IOS
 
