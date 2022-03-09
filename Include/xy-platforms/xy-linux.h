@@ -19,7 +19,6 @@
 
 #include "../xy.h"
 
-
 #if defined( XY_OS_LINUX )
 
  //////////////////////////////////////////////////////////////////////////
@@ -27,30 +26,51 @@
 
 #include <vector>
 #include <unordered_map>
+#include <chrono>
 #include <xcb/xcb.h>
+#include <X11/Xlib-xcb.h>
 
 //////////////////////////////////////////////////////////////////////////
 /// Linux-specific data structures
 
+struct xyMessageBoxData
+{
+	xyMessageBoxData( const char* pTitle, const char* pMessageContent, xyMessageButtons MessageButtons ) : m_pTitle( pTitle ), m_pMessageContent( pMessageContent ) { m_MessageButtons = MessageButtons; }
+
+	// #TODO:
+	~xyMessageBoxData() {}
+
+	void DrawMessageBox();
+
+	// Main Event loop
+	bool WaitClose();
+
+	const char* m_pTitle = "";
+	const char* m_pMessageContent = "";
+
+	float m_Width, m_Height = 150;
+
+	xyMessageButtons m_MessageButtons = xyMessageButtons::Ok;
+
+	// XCB Data
+
+	xcb_window_t m_Window = NULL;
+	xcb_screen_t* m_pScreen = nullptr;
+	xcb_connection_t* m_pConnection = nullptr;
+	int m_VisualID = 0;
+
+	// X11 Data
+
+	Display* m_pDisplay = nullptr;
+};
+
 struct xyPlatformImpl
 {
-	int xyCreateXCBMsgBox( std::string_view Title, std::string_view Message );
+	void xyCreateXCBMsgBox( std::string_view Title, std::string_view Message );
 
-	xyXCBData m_XCBData = xyXCBData();
+	std::vector< xyMessageBoxData > m_MessageBoxes;
 
 }; // xyPlatformImpl
-
-struct xyXCBData
-{
-	xyXCBData();
-	~xyXCBData();
-
-	xcb_screen_t* FindFirstScreen();
-
-	xcb_connection_t* m_pConnection;
-
-	std::unordered_map< const char*, xcb_window_t /* uint32_t */ > m_Windows;
-};
 
 //////////////////////////////////////////////////////////////////////////
 /*
@@ -64,49 +84,46 @@ struct xyXCBData
 */
 #if defined( XY_IMPLEMENT )
 
-xyXCBData::xyXCBData()
+bool xyMessageBoxData::WaitClose()
 {
-	// Open a connection to the X server.
-	m_pConnection = xcb_connect( NULL, NULL );
+
 }
 
-xyXCBData::~xyXCBData()
+void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view Message )
 {
-	xcb_disconnect( m_pConnection );
-}
+	xyMessageBoxData MessageBox = { Title.data(), Message.data(), xyMessageButtons::Ok };
 
-xcb_screen_t* xyXCBData::FindFirstScreen()
-{
-	const xcb_setup_t* pSetup = xcb_get_setup( pConnection );
-	xcb_screen_iterator_t It = xcb_setup_roots_iterator( pSetup );
+	// Open Xlib display.
+	MessageBox.m_pDisplay = XOpenDisplay( 0 );
 
-	return It.data;
-}
-
-int xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view Message )
-{
-	// TODO: Right now we always create the window on the first screen, when we have GUI added we may want it to be on the same screen as the window.
+	// Get connection from xlib.
+	MessageBox.m_pConnection = XGetXCBConnection( MessageBox.m_pDisplay );
 
 	// Find first screen.
-	std::unique_ptr< xcb_screen_t > pFirstScreen;
-	pFirstScreen = std::make_unique< xcb_screen_t >( m_XCBData.FindFirstScreen() );
+	MessageBox.m_pScreen = xcb_setup_roots_iterator( xcb_get_setup( MessageBox.m_pConnection ) ).data;
 
-	// Create the window.
-	m_XCBData.m_Windows.insert( { Title.data(), xcb_generate_id( m_XCBData.m_pConnection ) } );
+	MessageBox.m_Window = xcb_generate_id( MessageBox.m_pConnection );
 
-	xcb_create_window( m_XCBData.m_pConnection,
-				   XCB_COPY_FROM_PARENT,
-				   m_XCBData.m_Windows[ Title.data() ],
-				   pFirstScreen->root,
-				   0, 0,
-				   150, 150,
-				   8,
-				   XCB_WINDOW_CLASS_INPUT_OUTPUT
-				   pFirstScreen->root_visual,
-				   0, NULL );
+	// xcb events -> https://xcb.freedesktop.org/tutorial/events/
+	uint32_t EventMask = XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_KEY_PRESS;
+	uint32_t ValueList[] = { EventMask };
 
-	// Map window to the screen.
-	xcb_map_window( m_XCBData.m_pConnection, m_XCBData.m_Windows[ Title.data() ] );
+	int X = MessageBox.m_pScreen->width_in_pixels - m_Width;
+	int Y = MessageBox.m_pScreen->height_in_pixels - m_Height;
+
+	xcb_create_window( MessageBox.m_pConnection, XCB_COPY_FROM_PARENT, MessageBox.m_Window, MessageBox.m_pScreen->root, X, Y, m_Width, m_Height, 8, XCB_WINDOW_CLASS_INPUT_OUTPUT, MessageBox.m_VisualID, 0, ValueList );
+
+	// Set title.
+	xcb_change_property( MessageBox.m_pConnection, XCB_PROP_MODE_REPLACE, MessageBox.m_Window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, strlen( MessageBox.m_pTitle ), MessageBox.m_pTitle );
+	// Icon title.
+	xcb_change_property( MessageBox.m_pConnection, XCB_PROP_MODE_REPLACE, MessageBox.m_Window, XCB_ATOM_WM_ICON_NAME, XCB_ATOM_STRING, 8, strlen( MessageBox.m_pTitle ), MessageBox.m_pTitle );
+
+	xcb_map_window( MessageBox.m_pConnection, MessageBox.m_Window );
+
+	xcb_flush( MessageBox.m_pConnection );
+
+	while( !MessageBox.WaitClose() )
+		std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
 }
 #endif
 

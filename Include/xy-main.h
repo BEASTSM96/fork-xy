@@ -197,12 +197,12 @@ int main( int ArgC, char** ppArgV )
 {
 	xyContext& rContext      = xyGetContext();
 	rContext.CommandLineArgs = std::span< char* >( ppArgV, ArgC );
-	rContext.UIMode          = XY_UI_MODE_DESKTOP;
+	rContext.UIMode          = XY_UI_MODE_DESKTOP; // We assume Linux is running with a GUI, we might want to create a function to test if we are.
 
 	setlocale( LC_CTYPE, "UTF-8" );
 
 	return xyMain();
-
+	
 } // main
 
 #else // XY_OS_LINUX
