@@ -29,6 +29,8 @@
 #include <chrono>
 #include <xcb/xcb.h>
 #include <X11/Xlib-xcb.h>
+#include <string>
+#include <cstring>
 
 //////////////////////////////////////////////////////////////////////////
 /// Linux-specific data structures
@@ -48,7 +50,8 @@ struct xyMessageBoxData
 	const char* m_pTitle = "";
 	const char* m_pMessageContent = "";
 
-	float m_Width, m_Height = 150;
+	float m_Width = 150;
+	float m_Height = 150;
 
 	xyMessageButtons m_MessageButtons = xyMessageButtons::Ok;
 
@@ -57,6 +60,11 @@ struct xyMessageBoxData
 	xcb_window_t m_Window = NULL;
 	xcb_screen_t* m_pScreen = nullptr;
 	xcb_connection_t* m_pConnection = nullptr;
+	xcb_drawable_t m_PixelMap;
+
+	xcb_gcontext_t ForegroundGC;
+	xcb_gcontext_t FillGC      ;
+
 	int m_VisualID = 0;
 
 	// X11 Data
@@ -86,7 +94,36 @@ struct xyPlatformImpl
 
 bool xyMessageBoxData::WaitClose()
 {
+	xcb_generic_event_t* pEvent;
 
+	while( pEvent = xcb_wait_for_event( c ) )
+	{
+		switch( pEvent->response_type & ~0x80 )
+		{
+			case XCB_KEY_PRESS:
+			{
+				xcb_poly_fill_rectangle_checked( m_pConnection, m_PixelMap, FillGC, ( xcb_rectangle_t[] ) { { 0, 0, 500, 500 } } );
+
+				xcb_clear_area( m_pConnection, 1, m_Window, 0, 0, 500, 500 );
+
+				xcb_flush( m_pConnection );
+				return false;
+			}
+
+			case XCB_EXPOSE:
+			{
+				xcb_flush( m_pConnection );
+				return false;
+			}
+		}
+
+		default:
+		{
+			return false;
+		}
+
+		return false;
+	}
 }
 
 void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view Message )
@@ -102,16 +139,42 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 	// Find first screen.
 	MessageBox.m_pScreen = xcb_setup_roots_iterator( xcb_get_setup( MessageBox.m_pConnection ) ).data;
 
+	uint32_t GCMask = 0;
+	uint32_t GCValues[ 2 ];
+
+	MessageBox.ForegroundGC = xcb_generate_id( MessageBox.m_pConnection );
+	MessageBox.FillGC       = xcb_generate_id( MessageBox.m_pConnection );
+
+	// Create foreground gc.
+	GCMask = XCB_GC_FOREGROUND | XCB_GC_GRAPHICS_EXPOSURES;
+	GCValues[ 0 ] = MessageBox.m_pScreen->black_pixel;
+	GCValues[ 1 ] = 0;
+
+	xcb_create_gc( MessageBox.m_pConnection, ForegroundGC, MessageBox.m_pScreen->root, GCMask, GCValues );
+
+	// Create pixel/pixmap map.
+
+	MessageBox.PixelMap = xcb_generate_id( MessageBox.m_pConnection );
+	xcb_create_pixmap( MessageBox.m_pConnection, MessageBox.m_pScreen->root_depth, MessageBox.m_PixelMap, MessageBox.m_pScreen->root, 500, 500 );
+
+	// Create fill gc.
+	GCMask = XCB_GC_FOREGROUND | XCB_GC_BACKGROUND;
+	GCValues[ 0 ] = MessageBox.m_pScreen->white_pixel;
+	GCValues[ 1 ] = MessageBox.m_pScreen->white_pixel;
+
+	xcb_create_gc( MessageBox.m_pConnection, FillGC, MessageBox.m_pScreen->root, GCMask, GCValues );
+
 	MessageBox.m_Window = xcb_generate_id( MessageBox.m_pConnection );
 
 	// xcb events -> https://xcb.freedesktop.org/tutorial/events/
+	uint32_t Mask = XCB_CW_BACK_PIXMAP | XCB_CW_EVENT_MASK;
 	uint32_t EventMask = XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_KEY_PRESS;
-	uint32_t ValueList[] = { EventMask };
+	uint32_t ValueList[] = { MessageBox.m_PixelMap, EventMask };
 
-	int X = MessageBox.m_pScreen->width_in_pixels - m_Width;
-	int Y = MessageBox.m_pScreen->height_in_pixels - m_Height;
+	int X = MessageBox.m_pScreen->width_in_pixels - MessageBox.m_Width;
+	int Y = MessageBox.m_pScreen->height_in_pixels - MessageBox.m_Height;
 
-	xcb_create_window( MessageBox.m_pConnection, XCB_COPY_FROM_PARENT, MessageBox.m_Window, MessageBox.m_pScreen->root, X, Y, m_Width, m_Height, 8, XCB_WINDOW_CLASS_INPUT_OUTPUT, MessageBox.m_VisualID, 0, ValueList );
+	xcb_create_window( MessageBox.m_pConnection, XCB_COPY_FROM_PARENT, MessageBox.m_Window, MessageBox.m_pScreen->root, X, Y, MessageBox.m_Width, MessageBox.m_Height, 8, XCB_WINDOW_CLASS_INPUT_OUTPUT, MessageBox.m_VisualID, Mask, ValueList );
 
 	// Set title.
 	xcb_change_property( MessageBox.m_pConnection, XCB_PROP_MODE_REPLACE, MessageBox.m_Window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, strlen( MessageBox.m_pTitle ), MessageBox.m_pTitle );
@@ -121,6 +184,9 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 	xcb_map_window( MessageBox.m_pConnection, MessageBox.m_Window );
 
 	xcb_flush( MessageBox.m_pConnection );
+
+	// Fill rect with black. #TODO: Fill color corresponding to theme.
+	xcb_poly_fill_rectangle( MessageBox.m_pConnection, MessageBox.m_PixelMap, MessageBox.FillGC, 1, ( xcb_rectangle_t[] ) { { 0, 0, 500, 500 } } );
 
 	while( !MessageBox.WaitClose() )
 		std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
