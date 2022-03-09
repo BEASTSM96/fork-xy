@@ -62,8 +62,8 @@ struct xyMessageBoxData
 	xcb_connection_t* m_pConnection = nullptr;
 	xcb_drawable_t m_PixelMap;
 
-	xcb_gcontext_t ForegroundGC;
-	xcb_gcontext_t FillGC      ;
+	xcb_gcontext_t m_ForegroundGC;
+	xcb_gcontext_t m_FillGC;
 
 	int m_VisualID = 0;
 
@@ -96,13 +96,15 @@ bool xyMessageBoxData::WaitClose()
 {
 	xcb_generic_event_t* pEvent;
 
-	while( pEvent = xcb_wait_for_event( c ) )
+	while( pEvent = xcb_wait_for_event( m_pConnection ) )
 	{
 		switch( pEvent->response_type & ~0x80 )
 		{
 			case XCB_KEY_PRESS:
 			{
-				xcb_poly_fill_rectangle_checked( m_pConnection, m_PixelMap, FillGC, ( xcb_rectangle_t[] ) { { 0, 0, 500, 500 } } );
+				xcb_rectangle_t Rectangles[] ={ { 0, 0, 500, 500 } };
+
+				xcb_poly_fill_rectangle_checked( m_pConnection, m_PixelMap, m_FillGC, Rectangles );
 
 				xcb_clear_area( m_pConnection, 1, m_Window, 0, 0, 500, 500 );
 
@@ -115,11 +117,6 @@ bool xyMessageBoxData::WaitClose()
 				xcb_flush( m_pConnection );
 				return false;
 			}
-		}
-
-		default:
-		{
-			return false;
 		}
 
 		return false;
@@ -142,19 +139,19 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 	uint32_t GCMask = 0;
 	uint32_t GCValues[ 2 ];
 
-	MessageBox.ForegroundGC = xcb_generate_id( MessageBox.m_pConnection );
-	MessageBox.FillGC       = xcb_generate_id( MessageBox.m_pConnection );
+	MessageBox.m_ForegroundGC = xcb_generate_id( MessageBox.m_pConnection );
+	MessageBox.m_FillGC       = xcb_generate_id( MessageBox.m_pConnection );
 
 	// Create foreground gc.
 	GCMask = XCB_GC_FOREGROUND | XCB_GC_GRAPHICS_EXPOSURES;
 	GCValues[ 0 ] = MessageBox.m_pScreen->black_pixel;
 	GCValues[ 1 ] = 0;
 
-	xcb_create_gc( MessageBox.m_pConnection, ForegroundGC, MessageBox.m_pScreen->root, GCMask, GCValues );
+	xcb_create_gc( MessageBox.m_pConnection, MessageBox.m_ForegroundGC, MessageBox.m_pScreen->root, GCMask, GCValues );
 
 	// Create pixel/pixmap map.
 
-	MessageBox.PixelMap = xcb_generate_id( MessageBox.m_pConnection );
+	MessageBox.m_PixelMap = xcb_generate_id( MessageBox.m_pConnection );
 	xcb_create_pixmap( MessageBox.m_pConnection, MessageBox.m_pScreen->root_depth, MessageBox.m_PixelMap, MessageBox.m_pScreen->root, 500, 500 );
 
 	// Create fill gc.
@@ -162,7 +159,7 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 	GCValues[ 0 ] = MessageBox.m_pScreen->white_pixel;
 	GCValues[ 1 ] = MessageBox.m_pScreen->white_pixel;
 
-	xcb_create_gc( MessageBox.m_pConnection, FillGC, MessageBox.m_pScreen->root, GCMask, GCValues );
+	xcb_create_gc( MessageBox.m_pConnection, MessageBox.m_FillGC, MessageBox.m_pScreen->root, GCMask, GCValues );
 
 	MessageBox.m_Window = xcb_generate_id( MessageBox.m_pConnection );
 
@@ -186,7 +183,10 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 	xcb_flush( MessageBox.m_pConnection );
 
 	// Fill rect with black. #TODO: Fill color corresponding to theme.
-	xcb_poly_fill_rectangle( MessageBox.m_pConnection, MessageBox.m_PixelMap, MessageBox.FillGC, 1, ( xcb_rectangle_t[] ) { { 0, 0, 500, 500 } } );
+
+	xcb_rectangle_t Rectangles[] ={ { 0, 0, 500, 500 } };
+
+	xcb_poly_fill_rectangle( MessageBox.m_pConnection, MessageBox.m_PixelMap, MessageBox.m_FillGC, 1, Rectangles );
 
 	while( !MessageBox.WaitClose() )
 		std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
