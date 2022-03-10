@@ -32,21 +32,23 @@
 #include <xcb/xcb_icccm.h> // install libxcb-icccm4-dev
 #include <string>
 #include <cstring>
+#include <signal.h>
 
 //////////////////////////////////////////////////////////////////////////
 /// Linux-specific data structures
 
-struct xyMessageBoxData
+class xyMessageBoxData
 {
+public:
 	xyMessageBoxData( const char* pTitle, const char* pMessageContent, xyMessageButtons MessageButtons ) : m_pTitle( pTitle ), m_pMessageContent( pMessageContent ) { m_MessageButtons = MessageButtons; }
 
 	// #TODO:
-	~xyMessageBoxData() {}
-
-	void DrawMessageBox();
+	~xyMessageBoxData();
 
 	// Main Event loop
 	bool WaitClose();
+
+public:
 
 	const char* m_pTitle = "";
 	const char* m_pMessageContent = "";
@@ -65,12 +67,21 @@ struct xyMessageBoxData
 
 	xcb_gcontext_t m_ForegroundGC;
 	xcb_gcontext_t m_FillGC;
+	xcb_gcontext_t m_FontGC;
 
 	int m_VisualID = 0;
 
 	// X11 Data
 
 	Display* m_pDisplay = nullptr;
+
+private:
+
+	void CreateFontGC();
+	void DrawMessageBox();
+
+	void TestCookie( xcb_void_cookie_t Cookie );
+
 };
 
 struct xyPlatformImpl
@@ -93,6 +104,64 @@ struct xyPlatformImpl
 */
 #if defined( XY_IMPLEMENT )
 
+xyMessageBoxData::~xyMessageBoxData()
+{
+	xcb_free_gc( m_pConnection, m_FontGC );
+	xcb_free_gc( m_pConnection, m_ForegroundGC );
+	xcb_free_gc( m_pConnection, m_FillGC );
+
+	xcb_free_pixmap( m_pConnection, m_PixelMap );
+
+	xcb_destroy_window( m_pConnection, m_Window );
+
+	xcb_disconnect( m_pConnection );
+
+	m_pDisplay = nullptr;
+	m_pScreen = nullptr;
+}
+
+void xyMessageBoxData::TestCookie( xcb_void_cookie_t Cookie )
+{
+	xcb_generic_error_t* pError = xcb_request_check( m_pConnection, Cookie );
+
+	// #TODO: Print and maybe not raise.
+	if( pError )
+		raise( SIGTRAP );
+}
+
+void xyMessageBoxData::CreateFontGC()
+{
+	const char* pFontName = "fixed";
+	xcb_void_cookie_t Cookie;
+
+	xcb_font_t Font = xcb_generate_id( m_pConnection );
+	Cookie = xcb_open_font_checked( m_pConnection, Font, strlen( pFontName ), pFontName );
+
+	TestCookie( Cookie );
+
+	uint32_t Mask = XCB_GC_FOREGROUND | XCB_GC_BACKGROUND | XCB_GC_FONT;
+	uint32_t Values[] = { m_pScreen->black_pixel, m_pScreen->white_pixel, Font };
+
+	Cookie = xcb_create_gc_checked( m_pConnection, m_FontGC, m_Window, Mask, Values );
+
+	TestCookie( Cookie );
+
+	Cookie = xcb_close_font_checked( m_pConnection, Font );
+
+	TestCookie( Cookie );
+}
+
+void xyMessageBoxData::DrawMessageBox()
+{
+	xcb_void_cookie_t Cookie;
+
+	Cookie = xcb_image_text_8_checked( m_pConnection, strlen( m_pMessageContent ), m_Window, m_FontGC, 10, m_Height - 10, m_pMessageContent );
+
+	TestCookie( Cookie );
+
+	// Make sure to free the gc when window is closed.
+}
+
 bool xyMessageBoxData::WaitClose()
 {
 	xcb_generic_event_t* pEvent;
@@ -109,6 +178,8 @@ bool xyMessageBoxData::WaitClose()
 
 				xcb_clear_area( m_pConnection, 1, m_Window, 0, 0, 0, 0 );
 
+				DrawMessageBox();
+
 				xcb_flush( m_pConnection );
 				return false;
 			}
@@ -116,6 +187,9 @@ bool xyMessageBoxData::WaitClose()
 			case XCB_EXPOSE:
 			{
 				xcb_clear_area( m_pConnection, 1, m_Window, 0, 0, 0, 0 );
+
+				DrawMessageBox();
+
 				xcb_flush( m_pConnection );
 				return false;
 			}
@@ -143,6 +217,9 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 
 	MessageBox.m_ForegroundGC = xcb_generate_id( MessageBox.m_pConnection );
 	MessageBox.m_FillGC       = xcb_generate_id( MessageBox.m_pConnection );
+	MessageBox.m_FontGC       = xcb_generate_id( MessageBox.m_pConnection ); // Will be used when rendering
+
+	CreateFontGC();
 
 	// Create foreground gc.
 	GCMask = XCB_GC_FOREGROUND | XCB_GC_GRAPHICS_EXPOSURES;
@@ -163,6 +240,7 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 
 	xcb_create_gc( MessageBox.m_pConnection, MessageBox.m_FillGC, MessageBox.m_pScreen->root, GCMask, GCValues );
 
+	// Generate window ID
 	MessageBox.m_Window = xcb_generate_id( MessageBox.m_pConnection );
 
 	// xcb events -> https://xcb.freedesktop.org/tutorial/events/
@@ -192,7 +270,7 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 
 	xcb_flush( MessageBox.m_pConnection );
 
-	// Fill rect with black. #TODO: Fill color corresponding to theme.
+	// Fill rect with black. #TODO: Fill color corresponding to theme. Or even see if the theme color is a warm/cool color and set fill accordingly.
 
 	xcb_rectangle_t Rectangles[] ={ { 0, 0, 0, 0 } };
 
