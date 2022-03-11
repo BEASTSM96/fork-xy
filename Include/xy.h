@@ -301,7 +301,7 @@ extern std::vector< xyDisplayAdapter > xyGetDisplayAdapters( void );
 #elif defined( XY_OS_IOS ) // XY_OS_ANDROID
 #include <UIKit/UIKit.h>
 #elif defined( XY_OS_LINUX )
-#include <dialog.h>
+#include <unistd.h>
 #endif // XY_OS_IOS
 
 
@@ -655,9 +655,9 @@ xyMessageResult xyMessageBox( std::string_view Title, std::string_view Message, 
 
 #elif defined( XY_OS_LINUX )
 
-// Create an XCB window.
-xyContext& rContext = xyGetContext();
-rContext.pPlatformImpl->xyCreateXCBMsgBox( "xyMessageBox", "a" );
+	// Create an XCB window.
+	xyContext& rContext = xyGetContext();
+	rContext.pPlatformImpl->xyCreateXCBMsgBox( Title.data(), Message.data() );
 
 #endif // XY_OS_IOS
 
@@ -720,7 +720,20 @@ xyDevice xyGetDevice( void )
 
 	return { .Name=[ pDeviceName UTF8String ] };
 
-#endif // XY_OS_IOS
+#elif defined( XY_OS_LINUX ) // XY_OS_IOS
+
+	char Buffer[ HOST_NAME_MAX + 1 ];
+	int Size = std::size( Buffer );
+	bool Result;
+
+	Result = ( bool ) gethostname( HostName, HOST_NAME_MAX + 1 );
+
+	if( Result )
+		return { .Name={ Buffer, Size } };
+	else
+		return { .Name="" };
+
+#endif // XY_OS_LINUX
 
 } // xyGetDevice
 
@@ -807,7 +820,11 @@ xyLanguage xyGetLanguage( void )
 
 	return { .LocaleName=[ pLanguage UTF8String ] };
 
-#endif // XY_OS_IOS
+#elif defined( XY_OS_LINUX ) // XY_OS_IOS
+
+	return { .LocaleName = std::move( std::locale().name() ) };
+
+#endif // XY_OS_LINUX
 
 } // xyGetLanguage
 
@@ -883,7 +900,10 @@ xyBatteryState xyGetBatteryState( void )
 		BatteryState.Charging           = [ pDevice batteryState ] == UIDeviceBatteryStateCharging;
 	}
 
-#endif // XY_OS_IOS
+
+#elif defined( XY_OS_LINUX ) // XY_OS_IOS
+
+#endif // XY_OS_LINUX
 
 	return BatteryState;
 
