@@ -140,7 +140,8 @@ void xyMessageBoxData::CreateFontGC()
 	TestCookie( Cookie );
 
 	uint32_t Mask = XCB_GC_FOREGROUND | XCB_GC_BACKGROUND | XCB_GC_FONT;
-	uint32_t Values[] = { m_pScreen->black_pixel, m_pScreen->white_pixel, Font };
+	// Here we want the text to be rendered on a black background with white as the text color.
+	uint32_t Values[] = { m_pScreen->white_pixel, m_pScreen->black_pixel, Font };
 
 	Cookie = xcb_create_gc_checked( m_pConnection, m_FontGC, m_PixelMap, Mask, Values );
 
@@ -155,13 +156,12 @@ void xyMessageBoxData::DrawMessageBox()
 {
 	xcb_void_cookie_t Cookie;
 
-	Cookie = xcb_image_text_8_checked( m_pConnection, strlen( m_pMessageContent ), m_PixelMap, m_FontGC, m_Width / 2, m_Height / 2, m_pMessageContent );
+	xcb_rectangle_t Rectangles[] ={ { m_Width / 2, m_Height / 2 - 10, 73, 30 } };
+	Cookie = xcb_poly_fill_rectangle_checked( m_pConnection, m_PixelMap, m_ForegroundGC, 1, Rectangles );
 
 	TestCookie( Cookie );
 
-	xcb_rectangle_t Rectangles[] ={ { 0, 0, 73, 30 } };
-
-	Cookie = xcb_poly_fill_rectangle_checked( m_pConnection, m_PixelMap, m_FillGC, 1, Rectangles );
+	Cookie = xcb_image_text_8_checked( m_pConnection, strlen( m_pMessageContent ), m_PixelMap, m_FontGC, m_Width / 2, m_Height / 2, m_pMessageContent );
 
 	TestCookie( Cookie );
 }
@@ -181,10 +181,6 @@ bool xyMessageBoxData::WaitClose()
 
 			case XCB_EXPOSE:
 			{
-				xcb_rectangle_t Rectangles[] ={ { 0, 0, m_Width, m_Height } };
-
-				xcb_poly_fill_rectangle_checked( m_pConnection, m_PixelMap, m_FillGC, 1, Rectangles );
-
 				xcb_clear_area( m_pConnection, 1, m_Window, 0, 0, m_Width, m_Height );
 
 				DrawMessageBox();
@@ -214,8 +210,9 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 	uint32_t GCMask = 0;
 	uint32_t GCValues[ 2 ];
 
+	// Create black graphic context.
 	MessageBox.m_ForegroundGC = xcb_generate_id( MessageBox.m_pConnection );
-	MessageBox.m_FillGC       = xcb_generate_id( MessageBox.m_pConnection );
+	MessageBox.m_FillGC       = xcb_generate_id( MessageBox.m_pConnection ); // #TODO: We might not need this.
 	MessageBox.m_FontGC       = xcb_generate_id( MessageBox.m_pConnection ); // Will be used when rendering
 
 	// Create foreground gc.
@@ -230,7 +227,7 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 	MessageBox.m_PixelMap = xcb_generate_id( MessageBox.m_pConnection );
 	xcb_create_pixmap( MessageBox.m_pConnection, MessageBox.m_pScreen->root_depth, MessageBox.m_PixelMap, MessageBox.m_pScreen->root, 500, 500 );
 
-	CreateFontGC();
+	MessageBox.CreateFontGC();
 
 	// Create fill gc.
 	GCMask = XCB_GC_FOREGROUND | XCB_GC_BACKGROUND;
