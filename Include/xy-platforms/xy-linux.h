@@ -48,6 +48,7 @@ public:
 	// Main Event loop
 	bool WaitClose();
 
+	void CreateFontGC();
 public:
 
 	const char* m_pTitle = "";
@@ -77,7 +78,6 @@ public:
 
 private:
 
-	void CreateFontGC();
 	void DrawMessageBox();
 
 	void TestCookie( xcb_void_cookie_t Cookie );
@@ -142,7 +142,7 @@ void xyMessageBoxData::CreateFontGC()
 	uint32_t Mask = XCB_GC_FOREGROUND | XCB_GC_BACKGROUND | XCB_GC_FONT;
 	uint32_t Values[] = { m_pScreen->black_pixel, m_pScreen->white_pixel, Font };
 
-	Cookie = xcb_create_gc_checked( m_pConnection, m_FontGC, m_Window, Mask, Values );
+	Cookie = xcb_create_gc_checked( m_pConnection, m_FontGC, m_PixelMap, Mask, Values );
 
 	TestCookie( Cookie );
 
@@ -155,11 +155,15 @@ void xyMessageBoxData::DrawMessageBox()
 {
 	xcb_void_cookie_t Cookie;
 
-	Cookie = xcb_image_text_8_checked( m_pConnection, strlen( m_pMessageContent ), m_Window, m_FontGC, 10, m_Height - 10, m_pMessageContent );
+	Cookie = xcb_image_text_8_checked( m_pConnection, strlen( m_pMessageContent ), m_PixelMap, m_FontGC, m_Width / 2, m_Height / 2, m_pMessageContent );
 
 	TestCookie( Cookie );
 
-	// Make sure to free the gc when window is closed.
+	xcb_rectangle_t Rectangles[] ={ { 0, 0, 73, 30 } };
+
+	Cookie = xcb_poly_fill_rectangle_checked( m_pConnection, m_PixelMap, m_FillGC, 1, Rectangles );
+
+	TestCookie( Cookie );
 }
 
 bool xyMessageBoxData::WaitClose()
@@ -172,21 +176,16 @@ bool xyMessageBoxData::WaitClose()
 		{
 			case XCB_KEY_PRESS:
 			{
-				xcb_rectangle_t Rectangles[] ={ { 0, 0, 0, 0 } };
-
-				xcb_poly_fill_rectangle_checked( m_pConnection, m_PixelMap, m_FillGC, 1, Rectangles );
-
-				xcb_clear_area( m_pConnection, 1, m_Window, 0, 0, 0, 0 );
-
-				DrawMessageBox();
-
-				xcb_flush( m_pConnection );
 				return false;
 			}
 
 			case XCB_EXPOSE:
 			{
-				xcb_clear_area( m_pConnection, 1, m_Window, 0, 0, 0, 0 );
+				xcb_rectangle_t Rectangles[] ={ { 0, 0, m_Width, m_Height } };
+
+				xcb_poly_fill_rectangle_checked( m_pConnection, m_PixelMap, m_FillGC, 1, Rectangles );
+
+				xcb_clear_area( m_pConnection, 1, m_Window, 0, 0, m_Width, m_Height );
 
 				DrawMessageBox();
 
@@ -219,8 +218,6 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 	MessageBox.m_FillGC       = xcb_generate_id( MessageBox.m_pConnection );
 	MessageBox.m_FontGC       = xcb_generate_id( MessageBox.m_pConnection ); // Will be used when rendering
 
-	CreateFontGC();
-
 	// Create foreground gc.
 	GCMask = XCB_GC_FOREGROUND | XCB_GC_GRAPHICS_EXPOSURES;
 	GCValues[ 0 ] = MessageBox.m_pScreen->black_pixel;
@@ -232,6 +229,8 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 
 	MessageBox.m_PixelMap = xcb_generate_id( MessageBox.m_pConnection );
 	xcb_create_pixmap( MessageBox.m_pConnection, MessageBox.m_pScreen->root_depth, MessageBox.m_PixelMap, MessageBox.m_pScreen->root, 500, 500 );
+
+	CreateFontGC();
 
 	// Create fill gc.
 	GCMask = XCB_GC_FOREGROUND | XCB_GC_BACKGROUND;
