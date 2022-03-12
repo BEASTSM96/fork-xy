@@ -217,7 +217,7 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 
 	// Create foreground gc.
 	GCMask = XCB_GC_FOREGROUND | XCB_GC_GRAPHICS_EXPOSURES;
-	GCValues[ 0 ] = MessageBox.m_pScreen->black_pixel;
+	GCValues[ 0 ] = 0x343434;
 	GCValues[ 1 ] = 0;
 
 	xcb_create_gc( MessageBox.m_pConnection, MessageBox.m_ForegroundGC, MessageBox.m_pScreen->root, GCMask, GCValues );
@@ -244,10 +244,11 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 	uint32_t EventMask = XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_KEY_PRESS;
 	uint32_t ValueList[] = { MessageBox.m_PixelMap, EventMask };
 
-	int X = MessageBox.m_pScreen->width_in_pixels - MessageBox.m_Width;
-	int Y = MessageBox.m_pScreen->height_in_pixels - MessageBox.m_Height;
+	xcb_create_window( MessageBox.m_pConnection, XCB_COPY_FROM_PARENT, MessageBox.m_Window, MessageBox.m_pScreen->root, 0, 0, MessageBox.m_Width, MessageBox.m_Height, 8, XCB_WINDOW_CLASS_INPUT_OUTPUT, MessageBox.m_VisualID, Mask, ValueList );
 
-	xcb_create_window( MessageBox.m_pConnection, XCB_COPY_FROM_PARENT, MessageBox.m_Window, MessageBox.m_pScreen->root, X, Y, MessageBox.m_Width, MessageBox.m_Height, 8, XCB_WINDOW_CLASS_INPUT_OUTPUT, MessageBox.m_VisualID, Mask, ValueList );
+	// Move window to center
+	int WindowPos[] = { MessageBox.m_pScreen->width_in_pixels - MessageBox.m_Width, MessageBox.m_pScreen->height_in_pixels - MessageBox.m_Height };
+	xcb_configure_window( MessageBox.m_pConnection, MessageBox.m_Window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, WindowPos );
 
 	// Set title.
 	xcb_change_property( MessageBox.m_pConnection, XCB_PROP_MODE_REPLACE, MessageBox.m_Window, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, strlen( MessageBox.m_pTitle ), MessageBox.m_pTitle );
