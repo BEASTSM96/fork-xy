@@ -217,7 +217,7 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 
 	// Create foreground gc.
 	GCMask = XCB_GC_FOREGROUND | XCB_GC_GRAPHICS_EXPOSURES;
-	GCValues[ 0 ] = 0x343434;
+	GCValues[ 0 ] = 0x2c2c2c;
 	GCValues[ 1 ] = 0;
 
 	xcb_create_gc( MessageBox.m_pConnection, MessageBox.m_ForegroundGC, MessageBox.m_pScreen->root, GCMask, GCValues );
@@ -231,8 +231,8 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 
 	// Create fill gc.
 	GCMask = XCB_GC_FOREGROUND | XCB_GC_BACKGROUND;
-	GCValues[ 0 ] = MessageBox.m_pScreen->white_pixel;
-	GCValues[ 1 ] = MessageBox.m_pScreen->white_pixel;
+	GCValues[ 0 ] = 0x343434;
+	GCValues[ 1 ] = 0x343434;
 
 	xcb_create_gc( MessageBox.m_pConnection, MessageBox.m_FillGC, MessageBox.m_pScreen->root, GCMask, GCValues );
 

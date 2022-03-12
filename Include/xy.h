@@ -302,6 +302,7 @@ extern std::vector< xyDisplayAdapter > xyGetDisplayAdapters( void );
 #include <UIKit/UIKit.h>
 #elif defined( XY_OS_LINUX )
 #include <unistd.h>
+#include <limits.h>
 #endif // XY_OS_IOS
 
 
@@ -722,16 +723,7 @@ xyDevice xyGetDevice( void )
 
 #elif defined( XY_OS_LINUX ) // XY_OS_IOS
 
-	char Buffer[ HOST_NAME_MAX + 1 ];
-	int Size = std::size( Buffer );
-	bool Result;
-
-	Result = ( bool ) gethostname( HostName, HOST_NAME_MAX + 1 );
-
-	if( Result )
-		return { .Name={ Buffer, Size } };
-	else
-		return { .Name="" };
+	return { .Name={ std::move( getlogin() ) } };
 
 #endif // XY_OS_LINUX
 
@@ -822,7 +814,7 @@ xyLanguage xyGetLanguage( void )
 
 #elif defined( XY_OS_LINUX ) // XY_OS_IOS
 
-	return { .LocaleName = std::move( std::locale().name() ) };
+	return { .LocaleName = std::move( std::locale("").name()) };
 
 #endif // XY_OS_LINUX
 
