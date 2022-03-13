@@ -54,8 +54,8 @@ public:
 	const char* m_pTitle = "";
 	const char* m_pMessageContent = "";
 
-	float m_Width = 150;
-	float m_Height = 150;
+	float m_Width = 463;
+	float m_Height = 310;
 
 	xyMessageButtons m_MessageButtons = xyMessageButtons::Ok;
 
@@ -141,7 +141,7 @@ void xyMessageBoxData::CreateFontGC()
 
 	uint32_t Mask = XCB_GC_FOREGROUND | XCB_GC_BACKGROUND | XCB_GC_FONT;
 	// Here we want the text to be rendered on a black background with white as the text color.
-	uint32_t Values[] = { m_pScreen->white_pixel, m_pScreen->black_pixel, Font };
+	uint32_t Values[] ={ m_pScreen->white_pixel, m_pScreen->black_pixel, Font };
 
 	Cookie = xcb_create_gc_checked( m_pConnection, m_FontGC, m_PixelMap, Mask, Values );
 
@@ -156,11 +156,30 @@ void xyMessageBoxData::DrawMessageBox()
 {
 	xcb_void_cookie_t Cookie;
 
-	xcb_rectangle_t Rectangles[] ={ { m_Width / 2, m_Height / 2 - 10, 73, 30 } };
-	Cookie = xcb_poly_fill_rectangle_checked( m_pConnection, m_PixelMap, m_ForegroundGC, 1, Rectangles );
+	switch( m_MessageButtons )
+	{
+		case xyMessageButtons::Ok:
+		{
+			xcb_rectangle_t Rectangles[] ={ { m_Width / 2, m_Height / 2 - 50, 73, 30 } };
+			Cookie                       = xcb_poly_fill_rectangle_checked( m_pConnection, m_PixelMap, m_ForegroundGC, 1, Rectangles );
 
-	TestCookie( Cookie );
+			TestCookie( Cookie );
+		} break;
 
+		case xyMessageButtons::OkCancel:
+		{
+			// Ive got no idea what the hell this is.
+			xcb_rectangle_t Rectangles[] ={ { m_Width / 2 - 50, m_Height / 2, 73, 30 }, { m_Width / 2 - 40, m_Height / 2 - 50, 73, 30 } };
+			Cookie                       = xcb_poly_fill_rectangle_checked( m_pConnection, m_PixelMap, m_ForegroundGC, 2, Rectangles );
+
+			TestCookie( Cookie );
+		} break;
+
+		default:
+			break;
+	}
+
+	// Draw message content.
 	Cookie = xcb_image_text_8_checked( m_pConnection, strlen( m_pMessageContent ), m_PixelMap, m_FontGC, m_Width / 2, m_Height / 2, m_pMessageContent );
 
 	TestCookie( Cookie );
@@ -196,7 +215,7 @@ bool xyMessageBoxData::WaitClose()
 
 void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view Message )
 {
-	xyMessageBoxData MessageBox = { Title.data(), Message.data(), xyMessageButtons::Ok };
+	xyMessageBoxData MessageBox ={ Title.data(), Message.data(), xyMessageButtons::Ok };
 
 	// Open Xlib display.
 	MessageBox.m_pDisplay = XOpenDisplay( 0 );
@@ -242,12 +261,12 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 	// xcb events -> https://xcb.freedesktop.org/tutorial/events/
 	uint32_t Mask = XCB_CW_BACK_PIXMAP | XCB_CW_EVENT_MASK;
 	uint32_t EventMask = XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_KEY_PRESS;
-	uint32_t ValueList[] = { MessageBox.m_PixelMap, EventMask };
+	uint32_t ValueList[] ={ MessageBox.m_PixelMap, EventMask };
 
 	xcb_create_window( MessageBox.m_pConnection, XCB_COPY_FROM_PARENT, MessageBox.m_Window, MessageBox.m_pScreen->root, 0, 0, MessageBox.m_Width, MessageBox.m_Height, 8, XCB_WINDOW_CLASS_INPUT_OUTPUT, MessageBox.m_VisualID, Mask, ValueList );
 
 	// Move window to center
-	int WindowPos[] = { MessageBox.m_pScreen->width_in_pixels - MessageBox.m_Width, MessageBox.m_pScreen->height_in_pixels - MessageBox.m_Height };
+	int WindowPos[] ={ MessageBox.m_pScreen->width_in_pixels - MessageBox.m_Width, MessageBox.m_pScreen->height_in_pixels - MessageBox.m_Height };
 	xcb_configure_window( MessageBox.m_pConnection, MessageBox.m_Window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, WindowPos );
 
 	// Set title.
