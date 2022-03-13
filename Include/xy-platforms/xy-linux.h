@@ -70,6 +70,8 @@ public:
 	xcb_gcontext_t m_FillGC;
 	xcb_gcontext_t m_FontGC;
 
+	xcb_intern_atom_reply_t* m_pDeleteWindReply = nullptr;
+
 	int m_VisualID = 0;
 
 	// X11 Data
@@ -199,7 +201,7 @@ bool xyMessageBoxData::WaitClose()
 		{
 			case XCB_CLIENT_MESSAGE:
 			{
-				if( ( *( xcb_client_message_event_t* )pEvent ).data.data32[ 0 ] == ( *pDeleteWindReply ).atom )
+				if( ( *( xcb_client_message_event_t* )pEvent ).data.data32[ 0 ] == ( *m_pDeleteWindReply ).atom )
 				{
 					return true;
 				}
@@ -284,9 +286,10 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 	xcb_intern_atom_reply_t* pProtcolsReply  = xcb_intern_atom_reply( MessageBox.m_pConnection, ProtocolsCookie, 0 );
 
 	xcb_intern_atom_cookie_t CloseWindowCookie = xcb_intern_atom( MessageBox.m_pConnection, 0, 16, "WM_DELETE_WINDOW" );
-	xcb_intern_atom_reply_t* pDeleteWindReply  = xcb_intern_atom_reply( MessageBox.m_pConnection, CloseWindowCookie, 0 );
+	MessageBox.m_pDeleteWindReply              = xcb_intern_atom_reply( MessageBox.m_pConnection, CloseWindowCookie, 0 );
 
-	xcb_change_property( MessageBox.m_pConnection, XCB_PROP_MODE_REPLACE, MessageBox.m_Window, ( *pProtcolsReply ).atom, 4, 32, 1, &( *pDeleteWindReply ).atom );
+	// Gain access to WM_PROTOCOLS.
+	xcb_change_property( MessageBox.m_pConnection, XCB_PROP_MODE_REPLACE, MessageBox.m_Window, ( *pProtcolsReply ).atom, 4, 32, 1, &( *MessageBox.m_pDeleteWindReply ).atom );
 
 	xcb_map_window( MessageBox.m_pConnection, MessageBox.m_Window );
 
