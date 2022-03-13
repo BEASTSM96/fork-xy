@@ -86,7 +86,7 @@ private:
 
 struct xyPlatformImpl
 {
-	void xyCreateXCBMsgBox( std::string_view Title, std::string_view Message );
+	void xyCreateXCBMsgBox( std::string_view Title, std::string_view Message, xyMessageButtons = xyMessageButtons::Ok );
 
 	std::vector< xyMessageBoxData > m_MessageBoxes;
 
@@ -140,8 +140,8 @@ void xyMessageBoxData::CreateFontGC()
 	TestCookie( Cookie );
 
 	uint32_t Mask = XCB_GC_FOREGROUND | XCB_GC_BACKGROUND | XCB_GC_FONT;
-	// Here we want the text to be rendered on a black background with white as the text color.
-	uint32_t Values[] ={ m_pScreen->white_pixel, m_pScreen->black_pixel, Font };
+	// Here we want the text to be rendered on the same color as the fill gc, with white as the text color.
+	uint32_t Values[] ={ m_pScreen->white_pixel, 0x343434, Font };
 
 	Cookie = xcb_create_gc_checked( m_pConnection, m_FontGC, m_PixelMap, Mask, Values );
 
@@ -162,6 +162,10 @@ void xyMessageBoxData::DrawMessageBox()
 		{
 			xcb_rectangle_t Rectangles[] ={ { m_Width / 2, m_Height / 2 - 50, 73, 30 } };
 			Cookie                       = xcb_poly_fill_rectangle_checked( m_pConnection, m_PixelMap, m_ForegroundGC, 1, Rectangles );
+
+			TestCookie( Cookie );
+
+			Cookie = xcb_image_text_8_checked( m_pConnection, strlen( "Ok" ), m_PixelMap, m_FontGC, m_Width / 2, m_Height / 2 - 50, "Ok" );
 
 			TestCookie( Cookie );
 		} break;
@@ -189,15 +193,20 @@ bool xyMessageBoxData::WaitClose()
 {
 	xcb_generic_event_t* pEvent;
 
+	xcb_intern_atom_cookie_t CloseWindowCookie = xcb_intern_atom( m_pConnection, 0, 16, "WM_DELETE_WINDOW" );
+	xcb_intern_atom_reply_t* pAtomReply        = xcb_intern_atom_reply( m_pConnection, cookie2, 0 );
+
 	while( pEvent = xcb_wait_for_event( m_pConnection ) )
 	{
 		switch( pEvent->response_type & ~0x80 )
 		{
-			case XCB_KEY_PRESS:
+			case XCB_CLIENT_MESSAGE:
 			{
-				return false;
+				if( ( *( xcb_client_message_event_t* )pEvent ).data.data32[ 0 ] == ( *pAtomReply ).atom )
+				{
+					return true;
+				}
 			}
-
 			case XCB_EXPOSE:
 			{
 				xcb_clear_area( m_pConnection, 1, m_Window, 0, 0, m_Width, m_Height );
@@ -213,9 +222,9 @@ bool xyMessageBoxData::WaitClose()
 	}
 }
 
-void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view Message )
+void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view Message, xyMessageButtons MessageButtons )
 {
-	xyMessageBoxData MessageBox ={ Title.data(), Message.data(), xyMessageButtons::Ok };
+	xyMessageBoxData MessageBox ={ Title.data(), Message.data(), MessageButtons };
 
 	// Open Xlib display.
 	MessageBox.m_pDisplay = XOpenDisplay( 0 );
@@ -288,12 +297,14 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 
 	// Fill rect with black. #TODO: Fill color corresponding to theme. Or even see if the theme color is a warm/cool color and set fill accordingly.
 
-	xcb_rectangle_t Rectangles[] ={ { 0, 0, 0, 0 } };
+	xcb_rectangle_t Rectangles[] ={ { 0, 0, MessageBox.m_Width, MessageBox.m_Height } };
 
 	xcb_poly_fill_rectangle( MessageBox.m_pConnection, MessageBox.m_PixelMap, MessageBox.m_FillGC, 1, Rectangles );
 
 	while( !MessageBox.WaitClose() )
 		std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
+
+	MessageBox = { };
 }
 #endif
 
