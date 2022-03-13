@@ -193,16 +193,13 @@ bool xyMessageBoxData::WaitClose()
 {
 	xcb_generic_event_t* pEvent;
 
-	xcb_intern_atom_cookie_t CloseWindowCookie = xcb_intern_atom( m_pConnection, 0, 16, "WM_DELETE_WINDOW" );
-	xcb_intern_atom_reply_t* pAtomReply        = xcb_intern_atom_reply( m_pConnection, cookie2, 0 );
-
 	while( pEvent = xcb_wait_for_event( m_pConnection ) )
 	{
 		switch( pEvent->response_type & ~0x80 )
 		{
 			case XCB_CLIENT_MESSAGE:
 			{
-				if( ( *( xcb_client_message_event_t* )pEvent ).data.data32[ 0 ] == ( *pAtomReply ).atom )
+				if( ( *( xcb_client_message_event_t* )pEvent ).data.data32[ 0 ] == ( *pDeleteWindReply ).atom )
 				{
 					return true;
 				}
@@ -283,6 +280,14 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 	// Icon title.
 	xcb_change_property( MessageBox.m_pConnection, XCB_PROP_MODE_REPLACE, MessageBox.m_Window, XCB_ATOM_WM_ICON_NAME, XCB_ATOM_STRING, 8, strlen( MessageBox.m_pTitle ), MessageBox.m_pTitle );
 
+	xcb_intern_atom_cookie_t ProtocolsCookie = xcb_intern_atom( MessageBox.m_pConnection, 1, 12, "WM_PROTOCOLS" );
+	xcb_intern_atom_reply_t* pProtcolsReply  = xcb_intern_atom_reply( MessageBox.m_pConnection, ProtocolsCookie, 0 );
+
+	xcb_intern_atom_cookie_t CloseWindowCookie = xcb_intern_atom( MessageBox.m_pConnection, 0, 16, "WM_DELETE_WINDOW" );
+	xcb_intern_atom_reply_t* pDeleteWindReply  = xcb_intern_atom_reply( MessageBox.m_pConnection, CloseWindowCookie, 0 );
+
+	xcb_change_property( MessageBox.m_pConnection, XCB_PROP_MODE_REPLACE, MessageBox.m_Window, ( *pProtcolsReply ).atom, 4, 32, 1, &( *pDeleteWindReply ).atom );
+
 	xcb_map_window( MessageBox.m_pConnection, MessageBox.m_Window );
 
 	// Great hack...
@@ -304,7 +309,7 @@ void xyPlatformImpl::xyCreateXCBMsgBox( std::string_view Title, std::string_view
 	while( !MessageBox.WaitClose() )
 		std::this_thread::sleep_for( std::chrono::milliseconds( 1 ) );
 
-	MessageBox = { };
+	//MessageBox = { };
 }
 #endif
 

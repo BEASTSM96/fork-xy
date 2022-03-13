@@ -91,7 +91,9 @@ xyMouse xyGetMouse( void )
 
 	return { .X=MouseLocation.x, .Y=MouseLocation.y, .Active=true };
 
-#endif // XY_OS_MACOS
+#elif defined( XY_OS_LINUX ) // XY_OS_MACOS
+
+#endif // XY_OS_LINUX
 
 } // xyGetMouse
 
